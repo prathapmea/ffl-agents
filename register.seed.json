@@ -1,0 +1,7 @@
+[
+  {"id":"FFL-0387","title":"PDF export fails on Monthly Summary","module":"Reporting","controlId":"btnExport","page":"Reporting / Monthly Summary","severity":"P2","status":"Under Review","reporters":2},
+  {"id":"FFL-0402","title":"Living Answers post can be deleted by any user","module":"Living Answers","controlId":"btnDelete","page":"Living Answers / Post","severity":"P1","status":"Assigned","reporters":1},
+  {"id":"FFL-0410","title":"Any user can delete a Customer record","module":"Grow","controlId":"btnDeleteCustomer","page":"Grow / Customers","severity":"P1","status":"Development","reporters":3},
+  {"id":"FFL-0415","title":"Opportunity Radar returns JSON error","module":"Grow","controlId":"radarLoad","page":"Grow / Opportunity Radar","severity":"P2","status":"Testing","reporters":1},
+  {"id":"FFL-0419","title":"Dashboard KPI tiles misaligned on 4K","module":"My Frontier","controlId":"kpiGrid","page":"My Frontier / Dashboard","severity":"P4","status":"Closed","reporters":1,"rootCause":"CSS grid breakpoint missing for >3440px widths"}
+]

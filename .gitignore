@@ -1,0 +1,12 @@
+# secrets & local env
+.env
+.venv/
+
+# generated state
+agents.json
+__pycache__/
+*.pyc
+
+# tooling
+.qodo/
+.DS_Store

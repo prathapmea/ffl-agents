@@ -1,0 +1,12 @@
+{
+  "page": "Reporting / Monthly Summary",
+  "url": "ffl.internal/reporting/monthly-summary",
+  "element": "Export PDF",
+  "controlId": "btnExport",
+  "tag": "button",
+  "xpath": "//div[@id='app']/div[2]/div[4]/button",
+  "consoleErrors": ["POST /api/reporting/export -> 500 Internal Server Error"],
+  "screenshot": "capture_0421.jpg (region-scoped)",
+  "reportedBy": "demo.user@ffl.internal",
+  "userNote": "Clicked export, nothing downloaded."
+}
