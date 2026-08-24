@@ -92,6 +92,23 @@ AGENTS = {
             '"recommendation" (one short sentence).'
         ),
     },
+    "A7": {
+        "name": "ffl-a7-review",
+        "display": "Consolidated Reviewer",
+        "instructions": (
+            "You are the Consolidated Reviewer agent, the final step of the autonomous FFL bug pipeline. "
+            "You receive the captured payload, the outputs of all child agents "
+            "(intake, classification, severity, root-cause hypothesis, duplicate check) "
+            "and the automated outcome (ticket created or duplicate linked). "
+            "Write the single executive review a human leader reads instead of watching the pipeline. "
+            "Plain business language, no jargon. "
+            + JSON_RULE +
+            ' Keys: "headline" (max 10 words), '
+            '"summary" (2-3 plain sentences: what broke, what the agents did, what the outcome is), '
+            '"riskLevel" (Low/Medium/High), "confidence" (High/Medium/Low), '
+            '"nextAction" (one sentence: the only thing the human reviewer should do).'
+        ),
+    },
     "A6": {
         "name": "ffl-a6-query",
         "display": "Bug Query Agent",

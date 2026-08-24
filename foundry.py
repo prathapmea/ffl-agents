@@ -5,14 +5,21 @@ from dotenv import load_dotenv
 load_dotenv()
 ENDPOINT = os.environ.get("PROJECT_ENDPOINT", "")
 MODEL    = os.environ.get("MODEL_DEPLOYMENT", "gpt-4.1")
+TENANT   = os.environ.get("AZURE_TENANT_ID", "")
 
 def client():
     """Lazy import so utility functions stay testable without the SDK installed."""
-    from azure.identity import DefaultAzureCredential
     from azure.ai.projects import AIProjectClient
     if not ENDPOINT:
         raise SystemExit("PROJECT_ENDPOINT missing - copy .env.example to .env and fill it.")
-    return AIProjectClient(endpoint=ENDPOINT, credential=DefaultAzureCredential())
+    if TENANT:
+        # pin the tenant so a drifted `az account set` default can't break runs
+        from azure.identity import AzureCliCredential
+        cred = AzureCliCredential(tenant_id=TENANT)
+    else:
+        from azure.identity import DefaultAzureCredential
+        cred = DefaultAzureCredential()
+    return AIProjectClient(endpoint=ENDPOINT, credential=cred)
 
 _openai = None
 def openai_client(pc):

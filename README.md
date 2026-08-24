@@ -56,6 +56,25 @@ python delete_agents.py    # cleanup when finished
 `pipeline.py` pauses at every **human gate** (you press Enter to confirm or
 type a correction) — the "agents suggest, humans decide" rule, live in the console.
 
+## 3a. Autonomous web demo (no human gates — leaders' showcase)
+
+```bash
+uvicorn app:app --port 8787     # then open http://localhost:8787
+```
+
+A mock FFL app with three seeded bugs (broken PDF export, a Save Draft crash,
+a missing permission check). Click a bug → **Report to Agents** → the pipeline
+runs fully autonomously and streams live into the page:
+
+- **P0 → A1**, then **A2 + A3 + A4 in parallel** (parallel fan-out), then **A5**
+- Real outcome with zero human touches: ticket written to the register, or
+  duplicate linked (reporter count bumped) — plus a GitHub issue if configured
+- **A7 Consolidated Reviewer** ends the run with one executive summary —
+  headline, risk level, next action. The only human act is one "Reviewed" click.
+
+The gated CLI (`pipeline.py`) and the autonomous web flow use the **same
+agents** — two orchestration modes over one agent fleet.
+
 ## 3b. Real hands (the pipeline now acts, not just prints)
 
 On the final accept, `hands.py` performs **real actions**:
