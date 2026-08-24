@@ -4,7 +4,7 @@ FFL Autonomous Bug Reporting - web demo.
 Serves the demo site and streams live agent progress over SSE.
 Run: uvicorn app:app --port 8787
 """
-import asyncio, json, uuid
+import asyncio, json, time, uuid
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -48,6 +48,25 @@ async def stream(run_id: str):
 @app.get("/api/register")
 async def get_register():
     return json.load(open("register.json", encoding="utf-8"))
+
+
+@app.post("/api/finalize")
+async def finalize(body: dict):
+    """Human review step: apply any unlocked edits, then lock the record."""
+    import hands
+    ticket_id = body.get("ticketId")
+    edits = body.get("edits") or {}
+    register = json.load(open("register.json", encoding="utf-8"))
+    rec, changed = hands.update_ticket(register, ticket_id, edits)
+    if rec is None:
+        raise HTTPException(404, f"unknown ticket {ticket_id}")
+    stamp = time.strftime("%H:%M:%S")
+    if changed:
+        print(f"\033[90m{stamp}\033[0m  \033[93mHUMAN REVIEW: {ticket_id} unlocked and edited\033[0m")
+        for c in changed:
+            print(f"\033[90m{stamp}\033[0m    \033[93m- {c}\033[0m")
+    print(f"\033[90m{stamp}\033[0m  \033[92mHUMAN REVIEW: {ticket_id} approved and LOCKED\033[0m\n")
+    return {"record": rec, "changed": changed}
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

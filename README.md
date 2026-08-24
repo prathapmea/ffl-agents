@@ -56,21 +56,38 @@ python delete_agents.py    # cleanup when finished
 `pipeline.py` pauses at every **human gate** (you press Enter to confirm or
 type a correction) — the "agents suggest, humans decide" rule, live in the console.
 
-## 3a. Autonomous web demo (no human gates — leaders' showcase)
+## 3a. Autonomous web demo (capture → agents → one review)
 
 ```bash
 uvicorn app:app --port 8787     # then open http://localhost:8787
 ```
 
-A mock FFL app with three seeded bugs (broken PDF export, a Save Draft crash,
-a missing permission check). Click a bug → **Report to Agents** → the pipeline
-runs fully autonomously and streams live into the page:
+Keep the VS Code terminal visible while you demo — the same run streams into
+both the page and the terminal, in colour.
 
-- **P0 → A1**, then **A2 + A3 + A4 in parallel** (parallel fan-out), then **A5**
-- Real outcome with zero human touches: ticket written to the register, or
-  duplicate linked (reporter count bumped) — plus a GitHub issue if configured
-- **A7 Consolidated Reviewer** ends the run with one executive summary —
-  headline, risk level, next action. The only human act is one "Reviewed" click.
+**The flow:**
+
+1. Click a control in the mock FFL app (Export PDF / Save Draft / Delete
+   Customer) — it fails and shows the real console error.
+2. Click the floating **🐞 bug icon** → capture mode. Hover highlights any
+   element; click the broken one. The page auto-captures page, controlId, tag,
+   xpath, console error and a region-scoped screenshot straight from the DOM.
+3. Type a **description**, hit **⚡ Submit to Agents**.
+4. The pipeline runs autonomously and resolves one agent at a time, live:
+   **P0 → A1 → (A2 ‖ A3 ‖ A4 in parallel) → A5** → real database write
+   (new ticket, or duplicate linked) → optional GitHub issue.
+5. **A7 Consolidated Reviewer** writes the single executive summary.
+
+**The lock.** Every agent output is 🔒 locked while the pipeline runs — no
+human can nudge an agent mid-flight. At the final review you can:
+
+- **🔓 Unlock & edit** — every agent field becomes editable (title, module,
+  type, severity, root-cause hypothesis, owner), or
+- **✓ Approve & lock** — accept the agents' work as-is.
+
+Approving persists your edits to the register with an audit trail
+(`humanEdits`, `reviewedBy`) and re-locks the record. Total human effort on a
+clean run: **one click**.
 
 The gated CLI (`pipeline.py`) and the autonomous web flow use the **same
 agents** — two orchestration modes over one agent fleet.

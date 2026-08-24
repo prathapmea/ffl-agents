@@ -31,6 +31,24 @@ def create_ticket(register, ticket) -> str:
     return ticket["id"]
 
 
+def update_ticket(register, ticket_id, edits, reviewer="human.reviewer@ffl.internal"):
+    """Apply the human reviewer's edits to a record and persist. Returns (record, changed_fields)."""
+    for r in register:
+        if r.get("id") == ticket_id:
+            changed = []
+            for k, v in (edits or {}).items():
+                if v not in (None, "") and str(r.get(k, "")) != str(v):
+                    changed.append(f"{k}: '{r.get(k)}' -> '{v}'")
+                    r[k] = v
+            r["status"] = r.get("status") or "Auto-Triaged"
+            r["reviewedBy"] = reviewer
+            if changed:
+                r["humanEdits"] = changed
+            save_register(register)
+            return r, changed
+    return None, []
+
+
 def link_duplicate(register, match_id):
     """Add this reporter to the existing case and persist. Returns the record or None."""
     for r in register:
