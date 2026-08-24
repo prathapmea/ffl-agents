@@ -58,15 +58,18 @@ async def finalize(body: dict):
     edits = body.get("edits") or {}
     register = json.load(open("register.json", encoding="utf-8"))
     rec, changed = hands.update_ticket(register, ticket_id, edits)
-    if rec is None:
-        raise HTTPException(404, f"unknown ticket {ticket_id}")
     stamp = time.strftime("%H:%M:%S")
+    if rec is None:
+        # e.g. the register was reset between the run and the review click
+        msg = f"{ticket_id or '(no id)'} is no longer in the register - it may have been reset since this run."
+        print(f"\033[90m{stamp}\033[0m  \033[91mHUMAN REVIEW: {msg}\033[0m")
+        return {"ok": False, "error": msg, "record": None, "changed": []}
     if changed:
         print(f"\033[90m{stamp}\033[0m  \033[93mHUMAN REVIEW: {ticket_id} unlocked and edited\033[0m")
         for c in changed:
             print(f"\033[90m{stamp}\033[0m    \033[93m- {c}\033[0m")
     print(f"\033[90m{stamp}\033[0m  \033[92mHUMAN REVIEW: {ticket_id} approved and LOCKED\033[0m\n")
-    return {"record": rec, "changed": changed}
+    return {"ok": True, "record": rec, "changed": changed}
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
