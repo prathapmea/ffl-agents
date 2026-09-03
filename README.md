@@ -1,6 +1,7 @@
 # FFL Agentic Bug Reporting — Azure AI Foundry (Pro-code)
 
-Six real agents (P0 parent + A1–A5 children + A6 query) created and run on
+Nine real agents (P0 parent + A1–A5 children + A6 query + A7 consolidated
+reviewer + A8 assignment & routing) created and run on
 **Azure AI Foundry Agent Service**. Each agent is a persistent Foundry agent —
 visible in the Foundry portal under **Agents** — orchestrated from Python.
 
@@ -46,7 +47,7 @@ MODEL_DEPLOYMENT=gpt-4.1
 ## 3. Run
 
 ```bash
-python create_agents.py    # creates P0, A1..A6 in Foundry  -> writes agents.json
+python create_agents.py    # creates P0, A1..A8 in Foundry  -> writes agents.json
 python pipeline.py         # runs the full bug flow on payload_sample.json
 python query_agent.py      # A6 interactive chat over the register
 python reset_register.py   # restore register.json to the seeded demo state
@@ -92,6 +93,43 @@ clean run: **one click**.
 The gated CLI (`pipeline.py`) and the autonomous web flow use the **same
 agents** — two orchestration modes over one agent fleet.
 
+## 3a-2. Full auto — routing, assignment and notification (no human click)
+
+The header toggle switches between two modes:
+
+| Mode | What happens at the end |
+|---|---|
+| **FULL AUTO** (default) | **A8 Assignment & Routing** picks the real owner from `owners.json`, escalates where the rules require, drafts and sends the notification, and the run **auto-approves and locks itself**. Zero human clicks. |
+| **REVIEW MODE** | The run stops at the consolidated review and waits for the human to unlock/edit/approve (the earlier behaviour). |
+
+**A8 routing rules** (enforced in the agent's instructions, grounded on `owners.json`):
+
+1. Assign to the **primary owner of the classified module**; unknown module → the Triage Desk default.
+2. **P1** → also escalate to the P1 escalation contact.
+3. **Security flag** → also escalate to the Security Officer.
+   (A P1 security bug therefore escalates to **both** — the agent returns an
+   `escalations` array, and the pipeline normalises every shape it can return.)
+4. Never invent a person — only names/emails present in the directory.
+5. SLA comes from the directory's `sla` map.
+
+The routing decision is **persisted** onto the register record (`assignee`,
+`assigneeEmail`, `team`, `sla`, `escalatedTo`, `assignedBy`, `assignedAt`,
+`status: Assigned`) and the record is locked with
+`reviewedBy: auto-approved via A7 consolidated review`.
+
+**Notification.** Set `NOTIFY_WEBHOOK` in `.env` to a Teams or Slack incoming
+webhook URL and the drafted message is really delivered (both accept the same
+`{"text": ...}` payload). Not configured? The message is drafted, shown in the
+UI and printed to the terminal, and clearly marked **not sent** — no fake success.
+
+**Human control is not lost:** the finished panel still offers
+**🔓 Override — unlock & edit anyway**, so a person can amend any agent's output
+after the fact.
+
+> `owners.json` ships with **placeholder people** (`@ffl.internal`). Replace it
+> with the real on-call directory — or point it at Entra ID groups — before any
+> production use.
+
 ## 3b. Real hands (the pipeline now acts, not just prints)
 
 On the final accept, `hands.py` performs **real actions**:
@@ -111,7 +149,7 @@ On the final accept, `hands.py` performs **real actions**:
 ## 4. What to show the team
 
 1. Run `create_agents.py`, then open **ai.azure.com → your project → Agents**:
-   seven named agents exist. Real, persistent, inspectable.
+   nine named agents exist. Real, persistent, inspectable.
 2. Run `pipeline.py`: the captured visual payload flows P0 → A1 → A2 → A3 → A4 → A5,
    each stopping at its human gate, ending in a ticket (or a duplicate link to FFL-0387).
 3. In the portal, open **Agents → (any agent) → Threads**: the actual runs and

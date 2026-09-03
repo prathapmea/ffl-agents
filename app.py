@@ -50,6 +50,11 @@ async def get_register():
     return json.load(open("register.json", encoding="utf-8"))
 
 
+@app.get("/api/owners")
+async def get_owners():
+    return json.load(open("owners.json", encoding="utf-8"))
+
+
 @app.post("/api/finalize")
 async def finalize(body: dict):
     """Human review step: apply any unlocked edits, then lock the record."""

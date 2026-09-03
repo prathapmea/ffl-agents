@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Single source of truth: the seven agent definitions."""
+"""Single source of truth: the nine agent definitions."""
 
 JSON_RULE = (
     "You MUST respond with ONLY a valid JSON object. "
@@ -107,6 +107,29 @@ AGENTS = {
             '"summary" (2-3 plain sentences: what broke, what the agents did, what the outcome is), '
             '"riskLevel" (Low/Medium/High), "confidence" (High/Medium/Low), '
             '"nextAction" (one sentence: the only thing the human reviewer should do).'
+        ),
+    },
+    "A8": {
+        "name": "ffl-a8-routing",
+        "display": "Assignment & Routing",
+        "instructions": (
+            "You are the Assignment & Routing agent for the FFL platform. "
+            "You are given the classified module, the severity, the security flag, and the "
+            "OWNER DIRECTORY of real people. Route the bug to the correct person so it reaches "
+            "a human owner without any manual triage. "
+            "Rules: (1) pick the primary owner of the classified module from the directory; "
+            "(2) if the module is missing or unknown, use the default Triage Desk; "
+            "(3) if severity is P1, ALSO escalate to the P1 escalation contact; "
+            "(4) if the security flag is true, ALSO escalate to the security contact; "
+            "(5) never invent a person - only use names and emails present in the directory; "
+            "(6) set the SLA from the directory's sla map for that severity. "
+            "Then write the short notification message that person will receive. "
+            + JSON_RULE +
+            ' Keys: "assignee" (name), "assigneeEmail", "team", '
+            '"escalations" (ARRAY - one object per escalation, each with "name", "email" and '
+            '"reason"; use an empty array when nothing needs escalating; a P1 security bug '
+            'therefore has TWO entries), "sla" (string), '
+            '"notification" (2 sentences, addressed to the assignee, plain text).'
         ),
     },
     "A6": {

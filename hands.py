@@ -4,7 +4,7 @@ The real hands: actions that actually change state after the human accepts.
 - register writes: new ticket appended / duplicate reporter count bumped in register.json
 - GitHub issue: real POST to the GitHub API (optional, set GITHUB_TOKEN + GITHUB_REPO in .env)
 """
-import json, os, re, urllib.request
+import json, os, re, time, urllib.request
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -82,3 +82,45 @@ def create_github_issue(title: str, body: str, labels=None) -> str:
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read())["html_url"]
+
+
+# ---------------------------------------------------------------- assignment
+
+def load_owners():
+    return json.load(open("owners.json", encoding="utf-8"))
+
+
+def assign_ticket(register, ticket_id, assignment, auto=True):
+    """Persist the routing decision onto the record. Returns the record or None."""
+    for r in register:
+        if r.get("id") == ticket_id:
+            r["assignee"] = assignment.get("assignee")
+            r["assigneeEmail"] = assignment.get("assigneeEmail")
+            r["team"] = assignment.get("team")
+            r["sla"] = assignment.get("sla")
+            escs = assignment.get("escalations") or []
+            if escs:
+                r["escalatedTo"] = [f"{e.get('name')} <{e.get('email')}> — {e.get('reason')}" for e in escs]
+            r["status"] = "Assigned"
+            r["assignedBy"] = "A8 routing agent (auto)" if auto else "human reviewer"
+            r["assignedAt"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            save_register(register)
+            return r
+    return None
+
+
+# -------------------------------------------------------------- notification
+
+def notify_configured() -> bool:
+    return bool(os.environ.get("NOTIFY_WEBHOOK", "").strip())
+
+
+def send_notification(text: str) -> str:
+    """POST to a Teams/Slack incoming webhook. Both accept {"text": ...}."""
+    url = os.environ["NOTIFY_WEBHOOK"].strip()
+    req = urllib.request.Request(
+        url, data=json.dumps({"text": text}).encode(),
+        headers={"Content-Type": "application/json", "User-Agent": "ffl-bug-pipeline"},
+        method="POST")
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return f"{resp.status} {resp.reason}"

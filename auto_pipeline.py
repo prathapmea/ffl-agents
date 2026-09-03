@@ -70,6 +70,29 @@ async def _call(emit, key, message):
         raise
 
 
+def norm_escalations(a8):
+    """A8 may return escalations as an array, a single object, a bare name, or nothing.
+    Normalise every shape into a list of {name, email, reason}."""
+    raw = a8.get("escalations")
+    if raw in (None, "", [], "null", "none"):
+        raw = a8.get("escalateTo")
+    if raw in (None, "", [], "null", "none"):
+        return []
+    reasons = a8.get("escalationReason")
+    reasons = [reasons] if isinstance(reasons, str) else (reasons if isinstance(reasons, list) else [])
+    if isinstance(raw, (str, dict)):
+        raw = [raw]
+    out = []
+    for i, x in enumerate(raw):
+        r = reasons[i] if i < len(reasons) else (reasons[0] if len(reasons) == 1 else None)
+        if isinstance(x, str):
+            out.append({"name": x, "email": a8.get("escalateToEmail"), "reason": r})
+        elif isinstance(x, dict):
+            out.append({"name": x.get("name"), "email": x.get("email"),
+                        "reason": x.get("reason") or x.get("escalationReason") or r})
+    return [e for e in out if e.get("name")]
+
+
 def build_problems(payload, a1, a2, a3, a4, a5, outcome):
     """Everything the agents actually detected, as a VS Code-style problem list."""
     loc = f"{payload.get('page','?')} › {payload.get('controlId','?')}"
@@ -104,7 +127,9 @@ async def run_auto(payload, emit):
     """Full autonomous run. `emit` is an async callback receiving event dicts."""
     t_start = time.monotonic()
     try:
+        full_auto = bool(payload.pop("fullAuto", True))
         register = json.load(open("register.json", encoding="utf-8"))
+        owners = hands.load_owners()
         pj = json.dumps(payload)
 
         _box("FFL AUTONOMOUS BUG PIPELINE — new capture received", [
@@ -113,12 +138,13 @@ async def run_auto(payload, emit):
             f"control   {payload.get('controlId')}   tag: {payload.get('tag')}",
             f"console   {'; '.join(payload.get('consoleErrors') or []) or 'none captured'}",
             f"note      \"{payload.get('userNote','')}\"",
-            "mode      AUTONOMOUS — no human gates until the final review",
+            "mode      " + ("FULL AUTO — routed, assigned and notified with no human click"
+                            if full_auto else "AUTONOMOUS — one human review at the end"),
         ])
         await _log(emit, f"capture received: {payload.get('element')} @ {payload.get('page')}", "human", C["teal"],
                    term_line="")
         await _log(emit, f'reporter note: "{payload.get("userNote","")}"', "dim", C["dim"], term_line="")
-        await _log(emit, "mode: AUTONOMOUS — agents run end to end, human reviews once", "human", C["violet"], term_line="")
+        await _log(emit, "mode: " + ("FULL AUTO — route, assign, notify and approve with no human click" if full_auto else "REVIEW MODE — one human review at the end"), "human", C["violet"], term_line="")
 
         p0 = await _call(emit, "P0", f"Payload:\n{pj}")
         a1 = await _call(emit, "A1", f"Payload:\n{pj}")
@@ -178,6 +204,46 @@ async def run_auto(payload, emit):
                     await _log(emit, f"GitHub issue failed: {e}", "warn", C["red"])
         await emit(outcome)
 
+        # ---- A8: route to the concerned person, then notify them ----
+        a8 = await _call(emit, "A8",
+                         f"Classification:\n{json.dumps(a2)}\n\nSeverity assessment:\n{json.dumps(a3)}\n\n"
+                         f"Outcome:\n{json.dumps(outcome)}\n\nOWNER DIRECTORY:\n{json.dumps(owners)}")
+
+        escs = norm_escalations(a8)
+        a8["escalations"] = escs
+        assignment = {"type": "assignment", "escalations": escs,
+                      **{k: a8.get(k) for k in ("assignee", "assigneeEmail", "team", "sla", "notification")}}
+        if outcome.get("kind") == "ticket":
+            rec2 = hands.assign_ticket(register, outcome["id"], a8, auto=full_auto)
+            if rec2:
+                await _log(emit, f"ASSIGNED → {a8.get('assignee')} ({a8.get('team')}) · SLA {a8.get('sla')}", "ok", C["teal"],
+                           term_line=f"{C['teal']}👤 ASSIGNED  {outcome['id']} → {a8.get('assignee')} <{a8.get('assigneeEmail')}> · SLA {a8.get('sla')}")
+        else:
+            await _log(emit, f"duplicate — notifying existing owner {a8.get('assignee')}", "info", C["teal"],
+                       term_line=f"{C['teal']}👤 NOTIFY    existing owner {a8.get('assignee')} <{a8.get('assigneeEmail')}>")
+        for e in escs:
+            await _log(emit, f"ESCALATED → {e['name']} ({e.get('reason') or 'escalation rule'})", "warn", C["red"],
+                       term_line=f"{C['red']}⇧ ESCALATED {e['name']} <{e.get('email') or 'n/a'}> — {e.get('reason') or 'escalation rule'}")
+
+        note = (f"[FFL {outcome.get('id')}] {outcome.get('severity','')} · {outcome.get('module','')}\n"
+                f"{outcome.get('title','')}\n{a8.get('notification','')}\nSLA: {a8.get('sla')}"
+                + (("\nEscalated to: " + ", ".join(e["name"] for e in escs)) if escs else ""))
+        if hands.notify_configured():
+            try:
+                status = await asyncio.to_thread(hands.send_notification, note)
+                assignment["notified"] = f"webhook {status}"
+                await _log(emit, f"NOTIFIED → webhook accepted ({status})", "ok", C["teal"],
+                           term_line=f"{C['teal']}✉ NOTIFIED  Teams/Slack webhook → {status}")
+            except Exception as e:
+                assignment["notifyError"] = str(e)
+                await _log(emit, f"notification failed: {e}", "warn", C["red"])
+        else:
+            assignment["notified"] = None
+            await _log(emit, "notification not sent — NOTIFY_WEBHOOK not configured (message drafted below)", "warn", C["amber"],
+                       term_line=f"{C['amber']}✉ NOT SENT  set NOTIFY_WEBHOOK in .env to deliver this to Teams/Slack")
+            print(f"{C['dim']}{note}{C['x']}", flush=True)
+        await emit(assignment)
+
         # ---- problems panel ----
         problems = build_problems(payload, a1, a2, a3, a4, a5, outcome)
         await emit({"type": "problems", "items": problems})
@@ -188,7 +254,21 @@ async def run_auto(payload, emit):
                          f"{json.dumps({'intake': a1, 'classification': a2, 'severity': a3, 'rootCause': a4, 'duplicates': a5})}\n\n"
                          f"Automated outcome:\n{json.dumps(outcome)}")
         await emit({"type": "review", "output": a7, "ticketId": outcome.get("id"),
-                    "kind": outcome.get("kind")})
+                    "kind": outcome.get("kind"), "fullAuto": full_auto})
+
+        # ---- auto-approve: close the loop with no human click ----
+        if full_auto:
+            locked = None
+            if outcome.get("kind") == "ticket":
+                locked, _ = hands.update_ticket(
+                    register, outcome["id"], {},
+                    reviewer=f"auto-approved via A7 consolidated review ({a7.get('riskLevel','?')} risk)")
+            await emit({"type": "finalized", "auto": True, "ticketId": outcome.get("id"),
+                        "assignee": a8.get("assignee"), "team": a8.get("team"),
+                        "escalations": escs, "sla": a8.get("sla"),
+                        "record": locked})
+            await _log(emit, f"AUTO-APPROVED and locked — {outcome.get('id')} now owned by {a8.get('assignee')}", "human", C["ok"],
+                       term_line=f"{C['ok']}🔒 AUTO-APPROVED  {outcome.get('id')} locked · owner {a8.get('assignee')} · no human click required")
 
         # ---- terminal summary ----
         errs = sum(1 for p in problems if p["severity"] == "error")
@@ -202,10 +282,14 @@ async def run_auto(payload, emit):
         print(f"  {C['b']}OUTCOME {C['x']}  {head}")
         print(f"  {C['b']}REVIEW  {C['x']}  {a7.get('headline','')}  ({a7.get('riskLevel','?')} risk)")
         print(f"  {C['b']}PROBLEMS{C['x']}  {C['red']}{errs} errors{C['x']} · {C['amber']}{warns} warnings{C['x']} · {C['dim']}{infos} info{C['x']}")
-        print(f"  {C['b']}TOTAL   {C['x']}  {total:.1f}s · 7 agents · 0 human gates")
+        print(f"  {C['b']}OWNER   {C['x']}  {a8.get('assignee')} · {a8.get('team')} · SLA {a8.get('sla')}"
+              + ((" · escalated to " + ", ".join(e["name"] for e in escs)) if escs else ""))
+        print(f"  {C['b']}TOTAL   {C['x']}  {total:.1f}s · 8 agents · " + ("0 human clicks (full auto)" if full_auto else "1 human review"))
         print(f"{C['teal']}{'─' * W}{C['x']}")
-        print(f"  {C['amber']}awaiting the single human review — unlock to edit, or approve{C['x']}\n", flush=True)
-        await _log(emit, "pipeline complete — awaiting the single human review", "human", C["amber"], term_line="")
+        print(("  " + C["ok"] + "closed the loop end to end — no human click required" + C["x"] + "\n")
+              if full_auto else
+              ("  " + C["amber"] + "awaiting the single human review — unlock to edit, or approve" + C["x"] + "\n"), flush=True)
+        await _log(emit, "pipeline complete" + ("" if full_auto else " — awaiting the single human review"), "human", C["amber"], term_line="")
     except Exception as e:
         await emit({"type": "fatal", "error": str(e)})
         await _log(emit, f"FATAL {e}", "err", C["red"])

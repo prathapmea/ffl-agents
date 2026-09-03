@@ -1,0 +1,50 @@
+{
+  "_note": "Demo routing directory. Replace these placeholder people with the real FFL on-call directory (or point at Entra ID groups) before any production use.",
+  "modules": {
+    "Reporting": {
+      "team": "Reporting Platform",
+      "primary": {"name": "Ayesha Khan", "email": "ayesha.khan@ffl.internal", "role": "Engineering Lead"},
+      "backup": {"name": "Rahul Menon", "email": "rahul.menon@ffl.internal", "role": "Senior Engineer"}
+    },
+    "Learning": {
+      "team": "Learning Experience",
+      "primary": {"name": "Daniel Osei", "email": "daniel.osei@ffl.internal", "role": "Frontend Lead"},
+      "backup": {"name": "Mei Lin", "email": "mei.lin@ffl.internal", "role": "Engineer"}
+    },
+    "Grow": {
+      "team": "Grow / CRM",
+      "primary": {"name": "Sofia Almeida", "email": "sofia.almeida@ffl.internal", "role": "Engineering Lead"},
+      "backup": {"name": "Omar Haddad", "email": "omar.haddad@ffl.internal", "role": "Backend Engineer"}
+    },
+    "Living Answers": {
+      "team": "Knowledge Services",
+      "primary": {"name": "Priya Nair", "email": "priya.nair@ffl.internal", "role": "Engineering Lead"},
+      "backup": {"name": "Tom Becker", "email": "tom.becker@ffl.internal", "role": "Engineer"}
+    },
+    "My Frontier": {
+      "team": "Core Experience",
+      "primary": {"name": "Lucas Silva", "email": "lucas.silva@ffl.internal", "role": "Engineering Lead"},
+      "backup": {"name": "Hana Sato", "email": "hana.sato@ffl.internal", "role": "Engineer"}
+    },
+    "Deploy": {
+      "team": "Deployment Services",
+      "primary": {"name": "Ingrid Larsen", "email": "ingrid.larsen@ffl.internal", "role": "Engineering Lead"},
+      "backup": {"name": "Yusuf Ali", "email": "yusuf.ali@ffl.internal", "role": "Engineer"}
+    },
+    "Tools": {
+      "team": "Internal Tools",
+      "primary": {"name": "Grace Okoro", "email": "grace.okoro@ffl.internal", "role": "Engineering Lead"},
+      "backup": {"name": "Viktor Novak", "email": "viktor.novak@ffl.internal", "role": "Engineer"}
+    }
+  },
+  "escalation": {
+    "P1": {"name": "Marcus Reid", "email": "marcus.reid@ffl.internal", "role": "Head of Engineering"},
+    "security": {"name": "Nadia Farouk", "email": "nadia.farouk@ffl.internal", "role": "Security Officer"}
+  },
+  "default": {
+    "team": "Triage Desk",
+    "primary": {"name": "Elena Vasquez", "email": "elena.vasquez@ffl.internal", "role": "Triage Lead"},
+    "backup": {"name": "Sam Wright", "email": "sam.wright@ffl.internal", "role": "Triage Engineer"}
+  },
+  "sla": {"P1": "2 hours", "P2": "1 business day", "P3": "5 business days", "P4": "next release"}
+}

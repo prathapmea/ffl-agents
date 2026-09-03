@@ -93,6 +93,20 @@
   .badge.risk-High,.badge.sec{background:#4b1113;color:#ff9b94}
   .badge.risk-Medium{background:#4a3a08;color:#ffd166} .badge.risk-Low{background:#0f3520;color:#7ee2a8}
   .sev.P1{color:var(--red)} .sev.P2{color:var(--amber)} .sev.P3{color:var(--blue)} .sev.P4{color:var(--dim)}
+  .assign{display:none;border:1px solid var(--blue);background:#0c1726;border-radius:10px;padding:13px}
+  .assign.show{display:block}
+  .assign .who{display:flex;align-items:center;gap:11px;margin-top:4px}
+  .avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(145deg,#58a6ff,#2b6cb0);color:#04121f;
+          display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:none}
+  .assign .nmx{font-weight:700} .assign .sub{font-size:12px;color:var(--dim)}
+  .esc{margin-top:9px;border-top:1px dashed #24354a;padding-top:8px;font-size:12px;color:#ffd166}
+  .noteprev{margin-top:9px;background:#0a1220;border:1px solid var(--line);border-radius:7px;padding:9px;
+            font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#9fb0c4;white-space:pre-wrap}
+  .switch{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);cursor:pointer;user-select:none}
+  .switch input{display:none}
+  .track{width:36px;height:19px;border-radius:20px;background:#2b3444;position:relative;transition:background .2s}
+  .track::after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#8b98a9;transition:.2s}
+  .switch input:checked + .track{background:#1d5c3a} .switch input:checked + .track::after{left:19px;background:var(--green)}
   .fatal{display:none;border:1px solid var(--red);background:#2a1214;border-radius:10px;padding:12px;color:#ff9b94}
   .fatal.show{display:block}
 
@@ -141,7 +155,13 @@
 
 <header>
   <div class="logo">FFL <span>Frontier</span> · Agentic Bug Reporting</div>
-  <div class="mode"><span class="pulse"></span> <b>AUTONOMOUS</b> — agents run end to end · human reviews once, at the end</div>
+  <div class="mode">
+    <label class="switch" title="Full auto: agents assign and notify the owner with no human click">
+      <input type="checkbox" id="fullAuto" checked><span class="track"></span>
+      <b id="modeLabel">FULL AUTO</b>
+    </label>
+    <span class="pulse"></span> <span id="modeText">agents route, assign and notify the owner — zero human clicks</span>
+  </div>
 </header>
 
 <main>
@@ -204,6 +224,10 @@
       <div class="agent" id="ag-A5"><div class="hd"><span class="dot"></span><span class="nm">A5 · Duplicate Detector</span><span class="rl">checks the register</span><span class="ms"></span><span class="lockbadge">🔒</span></div><div class="out"></div></div>
       <div class="arrow">▼</div>
       <div class="outcome" id="outcome"></div>
+      <div class="arrow">▼</div>
+      <div class="agent" id="ag-A8"><div class="hd"><span class="dot"></span><span class="nm">A8 · Assignment &amp; Routing</span><span class="rl">picks the owner</span><span class="ms"></span><span class="lockbadge">🔒</span></div><div class="out"></div></div>
+      <div class="assign" id="assign"></div>
+      <div class="arrow">▼</div>
       <div class="agent" id="ag-A7"><div class="hd"><span class="dot"></span><span class="nm">A7 · Consolidated Reviewer</span><span class="rl">executive summary</span><span class="ms"></span><span class="lockbadge">🔒</span></div><div class="out"></div></div>
       <div class="review" id="review"></div>
       <div class="fatal" id="fatal"></div>
@@ -249,12 +273,18 @@
 </div>
 
 <script>
-const AGENTS=["P0","A1","A2","A3","A4","A5","A7"];
+const AGENTS=["P0","A1","A2","A3","A4","A5","A8","A7"];
 const NAMES={P0:"P0 · Parent Orchestrator",A1:"A1 · Intake Structurer",A2:"A2 · Classifier",
-             A3:"A3 · Severity",A4:"A4 · Root Cause",A5:"A5 · Duplicate Detector",A7:"A7 · Consolidated Reviewer"};
+             A3:"A3 · Severity",A4:"A4 · Root Cause",A5:"A5 · Duplicate Detector",A8:"A8 · Assignment & Routing",A7:"A7 · Consolidated Reviewer"};
 let capturing=false, running=false, picked=null, lastTicket=null, unlocked=false;
 let outputs={}, problems=[], activePane="Terminal";
 
+document.getElementById("fullAuto").addEventListener("change",e=>{
+  document.getElementById("modeLabel").textContent=e.target.checked?"FULL AUTO":"REVIEW MODE";
+  document.getElementById("modeText").textContent=e.target.checked
+    ?"agents route, assign and notify the owner — zero human clicks"
+    :"agents run end to end · one human review at the end";
+});
 function fail(k){ document.getElementById("err-"+k).classList.add("show"); }
 
 /* ---------------- panel tabs ---------------- */
@@ -383,6 +413,7 @@ function resetLane(){
     delete el.dataset.output;
   }
   document.getElementById("outcome").className="outcome";
+  document.getElementById("assign").className="assign";
   document.getElementById("review").className="review";
   document.getElementById("fatal").className="fatal";
 }
@@ -398,6 +429,7 @@ async function submitCapture(){
   const desc=document.getElementById("desc").value.trim();
   if(!desc){ document.getElementById("desc").focus(); return; }
   const payload=buildPayload(picked,desc);
+  payload.fullAuto=document.getElementById("fullAuto").checked;
   closeModal(); resetLane(); showPane("Terminal"); running=true;
   document.getElementById("fab").disabled=true;
   term(`bug captured → ${payload.element} @ ${payload.page}`,"human");
@@ -450,6 +482,31 @@ function handle(ev){
     }
     refreshRegister(ev.kind==="ticket"?ev.id:null);
   }
+  if(ev.type==="assignment"){
+    const a=document.getElementById("assign"); a.classList.add("show");
+    const ini=(ev.assignee||"?").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase();
+    a.innerHTML=`<div style="font-size:10px;letter-spacing:1.5px;color:var(--blue);text-transform:uppercase">Routed to the concerned person</div>
+      <div class="who"><div class="avatar">${esc(ini)}</div>
+        <div><div class="nmx">${esc(ev.assignee||"unassigned")}</div>
+        <div class="sub">${esc(ev.assigneeEmail||"")} · ${esc(ev.team||"")} · SLA ${esc(ev.sla||"?")}</div></div></div>`
+      +((ev.escalations||[]).length?`<div class="esc">${(ev.escalations||[]).map(x=>
+          `⇧ Escalated to <b>${esc(x.name)}</b> ${x.email?"("+esc(x.email)+")":""} — ${esc(x.reason||"escalation rule")}`).join("<br>")}</div>`:"")
+      +`<div class="noteprev">${esc(ev.notification||"")}</div>`
+      +`<div style="font-size:11px;color:var(--dim);margin-top:7px">${
+          ev.notified?`✉ Notification delivered — ${esc(ev.notified)}`
+          :ev.notifyError?`✉ Notification failed: ${esc(ev.notifyError)}`
+          :"✉ Not sent — set NOTIFY_WEBHOOK in .env to deliver this to Teams/Slack"}</div>`;
+  }
+  if(ev.type==="finalized"){
+    const acts=document.getElementById("revActions"), done=document.getElementById("revDone");
+    if(acts) acts.style.display="none";
+    if(done){ done.style.display="block";
+      done.innerHTML=`<div style="color:var(--green);font-weight:700">✓ Auto-approved and 🔒 locked — ${esc(ev.ticketId||"outcome")} is owned by ${esc(ev.assignee||"the assigned team")}.</div>
+        <div style="font-size:12px;color:var(--dim);margin-top:5px">No human click was required. ${(ev.escalations||[]).length?"Escalated to "+(ev.escalations||[]).map(x=>esc(x.name)).join(", ")+". ":""}SLA ${esc(ev.sla||"?")}.</div>
+        <button class="btn secondary" style="margin-top:10px" onclick="unlockAll();this.remove()">🔓 Override — unlock &amp; edit anyway</button>`; }
+    lockCards(); refreshRegister(ev.ticketId);
+    term(`AUTO-APPROVED — ${ev.ticketId||""} locked, owner ${ev.assignee||""}`,"ok");
+  }
   if(ev.type==="review"){
     lastTicket=ev.ticketId||null;
     const r=document.getElementById("review"); r.classList.add("show"); const o=ev.output||{};
@@ -457,9 +514,10 @@ function handle(ev){
       <div class="head">${esc(o.headline||"")}</div><div>${esc(o.summary||"")}</div>
       <div class="badges"><span class="badge risk-${o.riskLevel}">Risk: ${esc(o.riskLevel||"?")}</span><span class="badge">Confidence: ${esc(o.confidence||"?")}</span></div>
       <div style="margin-top:3px"><b>Next action:</b> ${esc(o.nextAction||"")}</div>
-      <div id="revActions" style="margin-top:13px;display:flex;gap:9px;flex-wrap:wrap">
-        <button class="btn secondary" onclick="unlockAll()">🔓 Unlock &amp; edit agent outputs</button>
-        <button class="btn" style="background:var(--green);color:#04210d" onclick="approve()">✓ Approve &amp; lock</button>
+      <div id="revActions" style="margin-top:13px;display:flex;gap:9px;flex-wrap:wrap">${ev.fullAuto?
+        `<span style="color:var(--dim);font-size:12px">auto-approving and locking …</span>`:
+        `<button class="btn secondary" onclick="unlockAll()">🔓 Unlock &amp; edit agent outputs</button>
+         <button class="btn" style="background:var(--green);color:#04210d" onclick="approve()">✓ Approve &amp; lock</button>`}
       </div>
       <div id="revDone" style="display:none;margin-top:13px"></div>`;
   }
